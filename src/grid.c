@@ -1,16 +1,37 @@
 #include "grid.h"
 
 #ifdef _WIN32
+#include <conio.h>
 void ClearScreen() {
     system("cls");
 }
+int GetChar() {
+    getch();
+}
+
 #elif __linux__
+#include <termios.h>
 void ClearScreen() {
     system("clear");
 }
+int GetChar()
+{
+    int ch;
+    struct termios oldt;
+    struct termios newt;
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    ch = getchar(); 
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    return ch;
+}
 #endif
 
-void SetGrid(int width, int height, char grid[height][width]) {
+
+
+void ResetGrid(int width, int height, char grid[height][width]) {
     for (int i=0; i<height; i++) {
         for (int j=0; j<width; j++) {
             grid[i][j] = path;
@@ -18,7 +39,7 @@ void SetGrid(int width, int height, char grid[height][width]) {
     }
 }
 
-void DrawGrid(int width, int height, char* algorithm, char grid[height][width]) {
+void DrawGrid(int width, int height, char* algorithm, char grid[height][width], char* log) {
     ClearScreen();
     printf("[Width:%i]  [Height:%i]  [Algorithm:%s]\n\n", width, height, algorithm);
     printf("[-:path] [#:wall] [S:start] [G:goal]\n\n");
@@ -44,79 +65,90 @@ void DrawGrid(int width, int height, char* algorithm, char grid[height][width]) 
         }
         printf("\n");
     }
-    printf("\n");
+    printf("\n[Log: %s]\n\n", log);
 }
 
-void EditGrid(int width, int height, char* algorithm, char grid[height][width]) {
+void EditGrid(int width, int height, char* algorithm, char grid[height][width], Point *start_point, Point *goal_point, int clear_grid) {
     char type;
     int row, column;
-    int startSelected = false;
-    int goalSeclected = false;
+    char log[50] = "";
 
-    printf("> Edit Grid:\n\n");
-    printf("Put wall, set start point and goal point\n");
-    printf("Just set what you want put (wall, start or goal)\nand which row and column you want to put\n\n");
-
+    if (clear_grid) {
+        ResetGrid(width, height, grid);
+    }
     while(true) {
+        DrawGrid(width, height, algorithm, grid, log);
+
+        printf("***Edit Grid***\n\n");
+        printf("Just set what you want put (wall, start or goal)\nand which row and column you want to put\n\n");
+
         printf("[-:path] [#:wall] [S:start] [G:goal] [E:end]\n");
-        printf("Type(-/#/S/G/E): ");
+        printf("> Type(-/#/S/G/E): ");
         fflush(stdin);
-        scanf("%c%*c", &type);
+        scanf("%c", &type);
         type = toupper(type);
         if (type == 'E') {
             break;;
         }
-        if (type != path && type != wall && type != start && type != goal) {
-            printf("Choose valid type!\n\n");
+        else if (type != path && type != wall && type != start && type != goal) {
+            strcpy(log, "Choose valid type!");
             continue;
         }
-        if (type == start) {
-            if (startSelected) {
-                printf("Start point selected!\n\n");
+        else if (type == start) {
+            if (start_point->specified) {
+                strcpy(log, "Start point selected!");
                 continue;
             }
-            startSelected = true;
+            start_point->specified = true;
         }
-        if (type == goal) {
-            if (goalSeclected) {
-                printf("Goal point selected!\n\n");
+        else if (type == goal) {
+            if (goal_point->specified) {
+                strcpy(log, "Goal point selected!");
                 continue;
             }
-            goalSeclected = true;
+            goal_point->specified = true;
         }
-        printf("Row: ");
+
+        printf("> Row: ");
         fflush(stdin);
         scanf("%i", &row);
-        printf("Column: ");
+        printf("> Column: ");
         fflush(stdin);
         scanf("%i", &column);
         printf("\n");
 
         if (grid[row][column] == start) {
-            startSelected = false;
+            start_point->specified  = false;
         }
-        if (grid[row][column] == goal) {
-            goalSeclected = false;
+        else if (grid[row][column] == goal) {
+            goal_point->specified = false;
         }
 
+        if (type == start) {
+            start_point->x = column;
+            start_point->y = row;
+        }
+        else if (type == goal) {
+            goal_point->x = column;
+            goal_point->y = row;
+        }
         grid[row][column] = type;
-        DrawGrid(width, height, algorithm, grid);
-        printf("> Edit Grid\n\n");
-        printf("Put wall, set start point and goal point\n");
-        printf("Just set what you want put (wall, start or goal)\nand which row and column you want to put\n\n");
     }
 }
 
-void SetAlgorithm(char** algorithm) {
-    char *input = malloc(5);
+void SetAlgorithm(int width, int height, char** algorithm, char grid[height][width]) {
+    char *input = malloc(10);
+    char log[50] = "";
     while (true) {
-        printf("Algorithm(BFS/DFS/A*): ");
+        DrawGrid(width, height, *algorithm, grid, log);
+        printf("***Edit algorithm***\n\n");
+        printf("> Algorithm(BFS/DFS/A*): ");
         gets(input);
         for (int i=0; i<strlen(input); i++) {
             input[i] = toupper(input[i]);
         }
         if (strcmp(input, "BFS") && strcmp(input, "DFS") && strcmp(input, "A*")) {
-            printf("Choose valid algorithm!\n");
+            strcpy(log, "Choose valid algorithm!");
             continue;
         }
         else {
